@@ -15,7 +15,7 @@ ClusterRoleBinding, metrics Service, Deployment); they differ only in the
 and Events, which backups each schedule *would* retire. Nothing is ever deleted:
 
 ```bash
-kubectl apply -k "https://github.com/IvanBoykov/velero-retention-controller//deploy/base?ref=master"
+kubectl apply -k "https://github.com/IvanBoykov/velero-retention-controller//deploy/base?ref=main"
 ```
 
 **Full install — delete mode.** Same controller, with the global kill switch turned
@@ -23,10 +23,10 @@ off. Deletions still happen only for schedules explicitly annotated
 `retention.velero.io/enforce: "true"` (see [Configure](#configure)):
 
 ```bash
-kubectl apply -k "https://github.com/IvanBoykov/velero-retention-controller//deploy/overlays/write-mode?ref=master"
+kubectl apply -k "https://github.com/IvanBoykov/velero-retention-controller//deploy/overlays/write-mode?ref=main"
 ```
 
-Pin a release instead of `master` for a reproducible install:
+Pin a release instead of `main` for a reproducible install:
 
 ```bash
 kubectl apply -k "https://github.com/IvanBoykov/velero-retention-controller//deploy/base?ref=v0.1.0"
@@ -35,8 +35,8 @@ kubectl apply -k "https://github.com/IvanBoykov/velero-retention-controller//dep
 The `?ref` pins the manifests; the *image* is pinned separately — starting with the
 first release, CI rewrites the base to reference that explicit version tag (never
 `latest`), so `apply -k` without an overlay always pulls a published version.
-In the registry, `:latest` is only ever moved by a release tag; the tip of master is
-published as `:master` (and `:sha-<commit>`), which nothing in `deploy/` references.
+In the registry, `:latest` is only ever moved by a release tag; the tip of main is
+published as `:main` (and `:sha-<commit>`), which nothing in `deploy/` references.
 
 Prerequisites: Velero CRDs (`schedules`, `backups`, `deletebackuprequests`) and the target
 namespace (default: `velero`) must already exist — usually both are true wherever Velero
@@ -66,7 +66,7 @@ and annotate it with `retention.velero.io/enforce: "true"`.
 ### Uninstall
 
 ```bash
-kubectl delete -k "https://github.com/IvanBoykov/velero-retention-controller//deploy/base?ref=master"
+kubectl delete -k "https://github.com/IvanBoykov/velero-retention-controller//deploy/base?ref=main"
 ```
 
 This removes exactly the five objects the install created — the controller's

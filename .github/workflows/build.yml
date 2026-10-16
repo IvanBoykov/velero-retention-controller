@@ -2,7 +2,7 @@ name: build
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     tags: ["v*.*.*"]
   pull_request:
   workflow_dispatch:
@@ -53,7 +53,7 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            # :master tracks the tip of master (latest commit); :latest moves only on
+            # :main tracks the tip of main (latest commit); :latest moves only on
             # release tags, so it always denotes a published version.
             type=ref,event=branch
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
@@ -80,7 +80,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
         with:
-          ref: master
+          ref: main
       - name: Pin base image to ${{ github.ref_name }}
         run: |
           sed -E -i \
@@ -96,4 +96,4 @@ jobs:
             exit 0
           fi
           git commit -a -m "deploy: pin base image to ${GITHUB_REF_NAME}"
-          git push origin HEAD:master
+          git push origin HEAD:main
