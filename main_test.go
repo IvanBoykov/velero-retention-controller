@@ -1076,3 +1076,33 @@ func TestTiedTimestampsBreakDeterministically(t *testing.T) {
 		t.Errorf("tie must resolve to the newest name, got %v", forward[0])
 	}
 }
+
+func TestResolveNamespace(t *testing.T) {
+	cases := []struct {
+		flag, pod, want string
+		wantErr         bool
+	}{
+		{"velero", "", "velero", false},
+		{"", "from-downward-api", "from-downward-api", false},
+		{"explicit", "pod", "explicit", false},
+		{"  spaced  ", "", "spaced", false},
+		{"", "", "", true},
+		{"   ", "  ", "", true},
+	}
+	for _, tc := range cases {
+		got, err := resolveNamespace(tc.flag, tc.pod)
+		if tc.wantErr {
+			if err == nil {
+				t.Errorf("resolveNamespace(%q, %q): expected error, got %q", tc.flag, tc.pod, got)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("resolveNamespace(%q, %q): unexpected error %v", tc.flag, tc.pod, err)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("resolveNamespace(%q, %q) = %q, want %q", tc.flag, tc.pod, got, tc.want)
+		}
+	}
+}

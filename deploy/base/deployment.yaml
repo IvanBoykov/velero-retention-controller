@@ -26,6 +26,13 @@ spec:
       containers:
         - name: manager
           image: ghcr.io/ivanboykov/velero-retention-controller:v0.1.0
+          env:
+            # Single-namespace scope: the Role, the cache and leader election all
+            # follow the namespace the controller is deployed into.
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           args:
             - -metrics-bind-address=:8080
             - -health-probe-bind-address=:8081

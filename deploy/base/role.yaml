@@ -1,7 +1,11 @@
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   name: velero-retention-controller
+# Deliberately a Role, not a ClusterRole: Velero reconciles resources only in its own
+# namespace (its server caches exactly f.Namespace()), backups live in their schedule's
+# namespace, and DeleteBackupRequests are only honoured in the backup's namespace.
+# Everything this controller can usefully touch is in one namespace; deploy it there.
 rules:
   - apiGroups: ["velero.io"]
     resources: ["schedules", "backups", "restores"]
@@ -11,12 +15,12 @@ rules:
   - apiGroups: ["velero.io"]
     resources: ["deletebackuprequests"]
     verbs: ["get", "list", "watch", "create"]
-  # Events are recorded on Schedules in whatever namespace they live in.
+  # Events are recorded on Schedules, in this namespace.
   # "patch" is required because the event aggregator updates repeat counts.
   - apiGroups: [""]
     resources: ["events"]
     verbs: ["create", "patch"]
-  # Leader election.
+  # Leader election, in this namespace.
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
     verbs: ["get", "list", "watch", "create", "update", "patch"]

@@ -3,8 +3,9 @@ kind: Kustomization
 
 # Example deployment: write mode on.
 # The image comes from the base; the namespace is the base default (velero).
-# To deploy elsewhere, uncomment the namespace line (or copy this directory and
-# adjust), then:
+# The namespace must be the one Velero runs in — the controller only watches the
+# namespace it is deployed into. To deploy elsewhere, uncomment the namespace line
+# (or copy this directory and adjust), then:
 #   kubectl apply -k deploy/overlays/write-mode
 #
 # namespace: velero-control

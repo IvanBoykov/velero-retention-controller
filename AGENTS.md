@@ -12,6 +12,18 @@ the binary. Deployment manifests live under `deploy/` (kustomize base + `write-m
 example); validate changes with `kustomize build deploy/base` and
 `kustomize build deploy/overlays/write-mode`.
 
+## Single-namespace scope (Role, not ClusterRole)
+
+Velero's own server caches and reconciles only its install namespace, backups live in their
+schedule's namespace, and `DeleteBackupRequest` is honoured only inside the backup's namespace
+(the deletion controller Gets the backup by `dbr.Namespace` and cascades restores in
+`backup.Namespace`). A Schedule outside the Velero namespace is therefore dead config. So the
+controller watches exactly one namespace — `-namespace` flag, else `POD_NAMESPACE` (downward
+API); the manager cache uses `cache.Options.DefaultNamespaces`, leader election runs in that
+namespace, and RBAC is a plain Role. Deploy it into the Velero namespace. Do not reintroduce
+ClusterRole or a cluster-wide cache: with only Role permissions a cluster-scoped informer would
+Forbidden-loop at startup.
+
 ## Velero deletion semantics (important, non-obvious)
 
 Deleting a `Backup` CR with `client.Delete()` does **not** remove the backup data from object

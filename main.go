@@ -26,6 +26,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -654,8 +655,12 @@ func main() {
 	var enableLeaderElection bool
 	var dryRun bool
 	var probeAddr string
+	var watchNamespace string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.StringVar(&watchNamespace, "namespace", "",
+		"Namespace to watch; defaults to the POD_NAMESPACE env (injected via the downward API). "+
+			"The controller is single-namespace by design: Velero only reconciles its own.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -673,14 +678,28 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	setupLog := ctrl.Log.WithName("setup")
 
+	ns, err := resolveNamespace(watchNamespace, os.Getenv("POD_NAMESPACE"))
+	if err != nil {
+		setupLog.Error(err, "unable to determine namespace")
+		os.Exit(1)
+	}
+	setupLog.Info("watching a single namespace", "namespace", ns)
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
+		// Scoped like Velero itself (its server caches exactly its own namespace). The
+		// Role grants access to this namespace only, so a cluster-wide informer would
+		// fail with Forbidden at startup anyway.
+		Cache: cache.Options{
+			DefaultNamespaces: map[string]cache.Config{ns: {}},
+		},
 		Metrics: server.Options{
 			BindAddress: metricsAddr,
 		},
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "a92b15f5.velero.io",
+		HealthProbeBindAddress:  probeAddr,
+		LeaderElection:          enableLeaderElection,
+		LeaderElectionID:        "a92b15f5.velero.io",
+		LeaderElectionNamespace: ns,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -724,4 +743,18 @@ func (r *ScheduleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&velerov1.Schedule{}).
 		Complete(r)
+}
+
+// resolveNamespace implements the precedence for the watched namespace:
+// explicit -namespace flag, then POD_NAMESPACE (downward API), error if neither.
+// An empty result is rejected here rather than at manager start, where a missing
+// namespace would silently mean "watch everything" (which the Role forbids).
+func resolveNamespace(flagValue, podNamespace string) (string, error) {
+	if ns := strings.TrimSpace(flagValue); ns != "" {
+		return ns, nil
+	}
+	if ns := strings.TrimSpace(podNamespace); ns != "" {
+		return ns, nil
+	}
+	return "", stderrors.New("no namespace: set -namespace or the POD_NAMESPACE env")
 }

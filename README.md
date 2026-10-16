@@ -7,8 +7,8 @@ TTL window, and removes the rest through Velero's own `DeleteBackupRequest` path
 
 ## Install
 
-Both commands create the same five objects (ServiceAccount, ClusterRole,
-ClusterRoleBinding, metrics Service, Deployment); they differ only in the
+Both commands create the same five objects (ServiceAccount, Role,
+RoleBinding, metrics Service, Deployment); they differ only in the
 `-dry-run` flag, and neither deletes anything until a `Schedule` opts in.
 
 **Default install — dry run (recommended first step).** The controller reports, in logs
@@ -43,6 +43,11 @@ namespace (default: `velero`) must already exist — usually both are true where
 runs. The namespace itself is intentionally **not** part of the manifests, so the
 controller's installation never owns a namespace that may contain your Velero install.
 
+Deploy the controller **into the namespace Velero runs in**: it is single-namespace by
+design (namespaced Role, scoped cache, leader election in that namespace), because Velero
+itself only reconciles resources in its own namespace — a Schedule elsewhere is never
+processed, and a `DeleteBackupRequest` is only honoured in the backup's namespace.
+
 Override the namespace, image, or flags in your own
 [kustomize overlay](deploy/overlays/write-mode/kustomization.yaml) instead of
 forking the base.
@@ -54,7 +59,7 @@ forking the base.
 | `-dry-run` | `true` | The controller only reports what it *would* delete. |
 | `retention.velero.io/enforce` | absent | Even with `-dry-run=false`, a schedule is only enforced if it opts in. |
 | Retention annotations | absent | Schedules without annotations are never touched. |
-| RBAC | read + `create deletebackuprequests` | The controller can never delete `Backup` objects directly, and has no write access to schedules/backups. |
+| RBAC | namespaced Role: read + `create deletebackuprequests` | Scope is one namespace; the controller can never delete `Backup` objects directly, and has no write access to schedules/backups. |
 | Namespace object | not included | `kubectl delete -k` cannot cascade-destroy a co-located Velero install. |
 
 Applying the base with these defaults deletes **nothing**: it starts an observer that
@@ -70,7 +75,7 @@ kubectl delete -k "https://github.com/IvanBoykov/velero-retention-controller//de
 ```
 
 This removes exactly the five objects the install created — the controller's
-ServiceAccount, ClusterRole, ClusterRoleBinding, metrics Service and Deployment. It
+ServiceAccount, Role, RoleBinding, metrics Service and Deployment. It
 does not delete the namespace, any Velero resource (backups, schedules, restores), or
 anything else in the cluster.
 
