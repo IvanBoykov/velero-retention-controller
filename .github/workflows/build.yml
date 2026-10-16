@@ -13,7 +13,9 @@ concurrency:
 
 permissions:
   contents: read
-  packages: write
+  # No top-level packages:write. PR builds push nothing; only jobs that publish
+  # (image) or commit (pin-base-image) request their scopes explicitly.
+  packages: read
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}
@@ -29,10 +31,17 @@ jobs:
       - run: test -z "$(gofmt -l .)"
       - run: go vet ./...
       - run: go test -race -count=1 ./...
+      - name: govulncheck
+        uses: golang/govulncheck-action@v1.0.1
+        with:
+          go-version-file: go.mod
 
   image:
     runs-on: ubuntu-latest
     needs: test
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v7.0.1
       # No setup-qemu-action: the Dockerfile compiles on $BUILDPLATFORM and only

@@ -12,6 +12,24 @@ the binary. Deployment manifests live under `deploy/` (kustomize base + `write-m
 example); validate changes with `kustomize build deploy/base` and
 `kustomize build deploy/overlays/write-mode`.
 
+## Filesystem requirements: none
+
+The binary is static, CGO-free and writes nothing to disk: no writable /tmp mount
+required (users of os.TempDir in the dependency tree — velero credentials/file code,
+klog -log_file, client-go disk discovery cache — are outside our import/call path).
+readOnlyRootFilesystem can therefore stay on with zero volumes.
+
+## Resource sizing and the Go runtime
+
+Measured footprint of a fully-populated `Backup` CR after decoding: ~2 KiB of heap
+(informer caches hold decoded objects, not raw JSON). The cache is the only unbounded
+growth, so the limit scales as backups x 2 KiB: 128Mi covers ~10k backups with runtime
+baseline (~40Mi) and GC headroom. `GOMEMLIMIT` (90MiB) sits ~30% below the container
+limit — the Go runtime docs recommend leaving headroom because GOMEMLIMIT covers heap +
+runtime-managed memory only, not the binary mapping or cgroup-untracked allocations.
+GOMAXPROCS needs nothing: Go 1.25+ reads the cgroup CPU quota by default
+(`containermaxprocs=1`, see runtime/cgroup_linux.go); no automaxprocs dependency.
+
 ## Single-namespace scope (Role, not ClusterRole)
 
 Velero's own server caches and reconciles only its install namespace, backups live in their
