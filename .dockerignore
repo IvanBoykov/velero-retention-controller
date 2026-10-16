@@ -1,0 +1,18 @@
+# Everything the builder needs is go.mod, go.sum and the .go sources.
+# Keep the rest out of the build context - above all the gitignored local
+# kubeconfig, which must never reach a build daemon or a cached layer.
+.git
+.gitignore
+.github
+Dockerfile
+.dockerignore
+README.md
+AGENTS.md
+deploy
+kubeconfig
+*.kubeconfig
+auth-overrides.yaml
+bin
+velero-retention-controller
+*.test
+*.log

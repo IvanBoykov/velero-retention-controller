@@ -1,0 +1,99 @@
+name: build
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*.*.*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test -race -count=1 ./...
+
+  image:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v7.0.1
+      # No setup-qemu-action: the Dockerfile compiles on $BUILDPLATFORM and only
+      # copies the cross-compiled binary into the target-arch base image, so both
+      # platforms build natively on the amd64 runner.
+      - uses: docker/setup-buildx-action@v4.4.1
+      - uses: docker/login-action@v4.6.0
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            # :master tracks the tip of master (latest commit); :latest moves only on
+            # release tags, so it always denotes a published version.
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=sha
+      - uses: docker/build-push-action@v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Keep the tag in deploy/base in step with releases: users applying the base
+  # without an overlay get an explicit, published version instead of a floating tag.
+  # The GITHUB_TOKEN push does not retrigger workflows, so this cannot loop.
+  pin-base-image:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: master
+      - name: Pin base image to ${{ github.ref_name }}
+        run: |
+          sed -E -i \
+            "s|(image: ghcr\.io/ivanboykov/velero-retention-controller):[^[:space:]]+|\1:${GITHUB_REF_NAME}|" \
+            deploy/base/deployment.yaml
+          grep "image: ghcr.io" deploy/base/deployment.yaml
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "base already pinned to ${GITHUB_REF_NAME}"
+            exit 0
+          fi
+          git commit -a -m "deploy: pin base image to ${GITHUB_REF_NAME}"
+          git push origin HEAD:master
