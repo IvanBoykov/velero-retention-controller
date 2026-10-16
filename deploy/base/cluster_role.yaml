@@ -1,0 +1,22 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: velero-retention-controller
+rules:
+  - apiGroups: ["velero.io"]
+    resources: ["schedules", "backups", "restores"]
+    verbs: ["get", "list", "watch"]
+  # The controller only ever creates DeleteBackupRequests; it never deletes
+  # Backup objects itself, so no delete verbs are granted.
+  - apiGroups: ["velero.io"]
+    resources: ["deletebackuprequests"]
+    verbs: ["get", "list", "watch", "create"]
+  # Events are recorded on Schedules in whatever namespace they live in.
+  # "patch" is required because the event aggregator updates repeat counts.
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  # Leader election.
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]

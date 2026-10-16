@@ -1,0 +1,35 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Example deployment: write mode on.
+# The image comes from the base; the namespace is the base default (velero).
+# To deploy elsewhere, uncomment the namespace line (or copy this directory and
+# adjust), then:
+#   kubectl apply -k deploy/overlays/write-mode
+#
+# namespace: velero-control
+
+resources:
+  - ../../base
+
+# Global kill switch for real deletions. Individual Schedules still need the
+# annotation retention.velero.io/enforce: "true" before anything is removed.
+patches:
+  - target:
+      kind: Deployment
+      name: velero-retention-controller
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: velero-retention-controller
+      spec:
+        template:
+          spec:
+            containers:
+              - name: manager
+                args:
+                  - -metrics-bind-address=:8080
+                  - -health-probe-bind-address=:8081
+                  - -leader-elect=true
+                  - -dry-run=false

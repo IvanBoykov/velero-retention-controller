@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: velero-retention-controller
+spec:
+  replicas: 1
+  strategy:
+    # Leader election is enabled, but Recreate also keeps a rollout from
+    # briefly running two managers that would fight over the lease.
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: velero-retention-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: velero-retention-controller
+    spec:
+      serviceAccountName: velero-retention-controller
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: manager
+          image: ghcr.io/ivanboykov/velero-retention-controller:latest
+          args:
+            - -metrics-bind-address=:8080
+            - -health-probe-bind-address=:8081
+            - -leader-elect=true
+            # Global dry-run kill switch. "-dry-run=false" enables writes only
+            # for Schedules annotated with retention.velero.io/enforce: "true".
+            - -dry-run=true
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: health
+              containerPort: 8081
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

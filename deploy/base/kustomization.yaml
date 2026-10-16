@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Namespace applied to every namespaced resource below. The namespace object is
+# deliberately NOT part of these manifests: `kubectl delete -k` must never be able
+# to cascade-destroy a co-located Velero install. Create the namespace beforehand
+# (it usually already exists, since Velero runs there). Override in your own overlay.
+namespace: velero
+
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/name: velero-retention-controller
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/part-of: velero
+      app.kubernetes.io/managed-by: kustomize
+
+resources:
+  - service_account.yaml
+  - cluster_role.yaml
+  - cluster_role_binding.yaml
+  - deployment.yaml
+  - metrics_service.yaml
