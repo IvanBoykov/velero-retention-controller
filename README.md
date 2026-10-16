@@ -15,7 +15,7 @@ RoleBinding, metrics Service, Deployment); they differ only in the
 and Events, which backups each schedule *would* retire. Nothing is ever deleted:
 
 ```bash
-kubectl apply -k "https://github.com/IvanBoykov/velero-retention-controller//deploy/base?ref=main"
+kubectl apply -k "https://github.com/IvanBoykov/velero-retention-controller//deploy/base?ref=v0.2.0"
 ```
 
 **Full install — delete mode.** Same controller, with the global kill switch turned
@@ -23,13 +23,19 @@ off. Deletions still happen only for schedules explicitly annotated
 `retention.velero.io/enforce: "true"` (see [Configure](#configure)):
 
 ```bash
-kubectl apply -k "https://github.com/IvanBoykov/velero-retention-controller//deploy/overlays/write-mode?ref=main"
+kubectl apply -k "https://github.com/IvanBoykov/velero-retention-controller//deploy/overlays/write-mode?ref=v0.2.0"
 ```
 
-Pin a release instead of `main` for a reproducible install:
+The install commands pin the latest release (`v0.2.0`); substitute any release tag
+to pin an older version. **v0.2.0 changes the install scope** (see
+[RBAC and namespace scope](#rbac-and-namespace-scope)): it replaces the cluster-wide
+`ClusterRole`/`ClusterRoleBinding` with a namespaced `Role`/`RoleBinding`. If you
+applied `v0.1.0`, delete its cluster-scoped objects before applying `v0.2.0`:
 
 ```bash
-kubectl apply -k "https://github.com/IvanBoykov/velero-retention-controller//deploy/base?ref=v0.1.0"
+kubectl delete clusterrole velero-retention-controller
+kubectl delete clusterrolebinding velero-retention-controller
+kubectl apply -k "https://github.com/IvanBoykov/velero-retention-controller//deploy/base?ref=v0.2.0"
 ```
 
 The `?ref` pins the manifests; the *image* is pinned separately — starting with the
@@ -68,10 +74,20 @@ schedules without changing them. Deleting backups requires three
 deliberate steps: set `-dry-run=false` (deployment), annotate a schedule with a quota,
 and annotate it with `retention.velero.io/enforce: "true"`.
 
+### RBAC and namespace scope
+
+The controller is deliberately single-namespace: a namespaced `Role`/`RoleBinding`
+(read on schedules/backups/restores, `create` on `deletebackuprequests`, events, leases)
+and an informer cache scoped to the namespace it is deployed into. It needs nothing
+cluster-wide because Velero itself reconciles only its own namespace: a `Schedule`
+elsewhere is never processed, and a `DeleteBackupRequest` is only honoured inside the
+backup's namespace. So deploy it next to Velero (default: `velero`); to watch a second
+Velero install, deploy a second instance into that namespace.
+
 ### Uninstall
 
 ```bash
-kubectl delete -k "https://github.com/IvanBoykov/velero-retention-controller//deploy/base?ref=main"
+kubectl delete -k "https://github.com/IvanBoykov/velero-retention-controller//deploy/base?ref=v0.2.0"
 ```
 
 This removes exactly the five objects the install created — the controller's

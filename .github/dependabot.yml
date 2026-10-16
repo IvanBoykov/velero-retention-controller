@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # Go module dependencies (controller-runtime, velero API, k8s libraries).
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      go-deps:
+        patterns:
+          - "*"
+
+  # Action pins in .github/workflows (bump PRs need maintainer review).
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"
