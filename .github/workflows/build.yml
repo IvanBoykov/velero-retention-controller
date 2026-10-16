@@ -51,8 +51,12 @@ jobs:
           images: ${{ env.IMAGE }}
           tags: |
             type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            # semver patterns strip the v ({{raw}} alone would echo the git ref), so each
+            # gets prefix=v: releases publish the full v-family like k8s images,
+            # tag v0.1.2 -> v0.1.2 + v0.1 + v0 (image tag == git tag for the exact one).
+            type=semver,pattern={{version}},prefix=v
+            type=semver,pattern={{major}}.{{minor}},prefix=v
+            type=semver,pattern={{major}},prefix=v
             # :main tracks the tip of main (latest commit); :latest moves only on
             # release tags, so it always denotes a published version.
             type=ref,event=branch
@@ -83,6 +87,7 @@ jobs:
           ref: main
       - name: Pin base image to ${{ github.ref_name }}
         run: |
+          # Image tags carry the same v as the git tag (prefix=v), so GITHUB_REF_NAME applies verbatim.
           sed -E -i \
             "s|(image: ghcr\.io/ivanboykov/velero-retention-controller):[^[:space:]]+|\1:${GITHUB_REF_NAME}|" \
             deploy/base/deployment.yaml
