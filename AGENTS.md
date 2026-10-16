@@ -1,37 +1,16 @@
 # velero-retention-controller
 
-## Environment
-
-- Go is installed at `/workspace/opt/go` (Go 1.27.2). `/workspace` is the only directory that
-  survives container rebuilds, so the toolchain and the module cache both live there.
-- Before building, load the environment:
-
-  ```bash
-  . /workspace/opt/go-env.sh   # sets GOROOT, GOPATH, GOMODCACHE, GOBIN, PATH
-  ```
-
-  `~/.bashrc` and `~/.profile` source that file automatically in interactive/login shells,
-  but non-interactive tool shells do not — source it explicitly.
-- `/usr/local/bin/go` and `/usr/local/bin/gofmt` are convenience symlinks into `/workspace/opt/go`
-  and do **not** survive a rebuild. Treat `go-env.sh` as the durable entry point.
-- Module cache is `/workspace/go/pkg/mod`. Deps: velero v1.18.4, controller-runtime v0.25.2,
-  k8s.io/* v0.37.1.
-
 ## Build / test
 
 ```bash
-. /workspace/opt/go-env.sh
-go build ./... && go vet ./... && go test ./...
+go build ./... && go vet ./... && go test -race -count=1 ./...
 ```
 
-Image: `Dockerfile` (distroless, CGO off, driven by buildx `TARGETARCH`); CI at
-`.github/workflows/build.yml` runs fmt/vet/test then builds linux/amd64+arm64 to GHCR
-(PR builds don't push). Deployment manifests under `deploy/` (kustomize base + `write-mode`
-overlay example); validate with `kustomize build` (CLI at `/workspace/opt/bin`).
-
-There is no cluster available in this environment; `main.go` exits at `GetConfigOrDie()`
-without a kubeconfig. Verify reconcile behaviour with the fake client in `main_test.go`
-(`sigs.k8s.io/controller-runtime/pkg/client/fake`) rather than trying to run the binary.
+No cluster or envtest is set up in this repo: verify reconcile behaviour with the fake client
+in `main_test.go` (`sigs.k8s.io/controller-runtime/pkg/client/fake`) rather than trying to run
+the binary. Deployment manifests live under `deploy/` (kustomize base + `write-mode` overlay
+example); validate changes with `kustomize build deploy/base` and
+`kustomize build deploy/overlays/write-mode`.
 
 ## Velero deletion semantics (important, non-obvious)
 
@@ -162,7 +141,7 @@ safe default).
 
 ## Verifying against a real cluster
 
-- A kubeconfig for ad-hoc verification lives at `./kubeconfig`, is gitignored — never commit or
+- Any kubeconfig placed in the repo for ad-hoc verification is gitignored — never commit or
   print it. With a read-only credential, dry-run is the only possible mode.
 - If the verification identity lacks `create leases.coordination.k8s.io`, run with
   `-leader-elect=false`.
