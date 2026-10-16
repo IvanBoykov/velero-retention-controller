@@ -1,0 +1,8 @@
+# compiled binaries
+/velero-retention-controller
+/bin/
+
+# credentials - never commit
+kubeconfig
+*.kubeconfig
+auth-overrides.yaml
